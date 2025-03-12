@@ -1,5 +1,5 @@
-import 'package:calories_tracker/home_page.dart';
-import 'package:calories_tracker/signup_page.dart';
+import 'package:calories_tracker/pages/home_page.dart';
+import 'package:calories_tracker/pages/signup_page.dart';
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatelessWidget {
@@ -58,7 +58,8 @@ class LoginPage extends StatelessWidget {
                   SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage()));
+                      //TODO: User for this change this to real user
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage(username: "test001",)));
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple,

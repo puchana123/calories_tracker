@@ -1,9 +1,12 @@
+import 'package:calories_tracker/models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // BMI Page
 class BMIPage extends StatelessWidget {
-  const BMIPage({super.key});
+  final UserModel? user;
+
+  const BMIPage({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -11,50 +14,52 @@ class BMIPage extends StatelessWidget {
       backgroundColor: Colors.grey[200],
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Center(
-          child: Column(
-            children: [
-              SizedBox(
-                height: 20,
-              ),
+        child: SingleChildScrollView(
+          child: Center(
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 20,
+                ),
 
-              Text(
-                "Today",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(
-                height: 20,
-              ),
+                Text(
+                  "Today",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(
+                  height: 20,
+                ),
 
-              // BMI Card
-              _bmiCard(),
+                // BMI Card
+                _bmiCard(),
 
-              SizedBox(
-                height: 10,
-              ),
-              // Update Weight Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                  child: Text(
-                    "Update Weight",
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black),
+                SizedBox(
+                  height: 10,
+                ),
+                // Update Weight Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange),
+                    child: Text(
+                      "Update Details",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              // Line Chart
-              _weightChart()
-            ],
+                SizedBox(
+                  height: 20,
+                ),
+                // Line Chart
+                _weightChart()
+              ],
+            ),
           ),
         ),
       ),
@@ -71,7 +76,7 @@ class BMIPage extends StatelessWidget {
           children: [
             // BMI Calculator
             Container(
-              height: 200,
+              height: 150,
               decoration:
                   BoxDecoration(color: Colors.green, shape: BoxShape.circle),
               child: Center(
@@ -93,6 +98,10 @@ class BMIPage extends StatelessWidget {
                 ),
               ),
             ),
+            SizedBox(
+              height: 10,
+            ),
+            _userDetails()
           ],
         ),
       ),
@@ -106,7 +115,7 @@ class BMIPage extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: SizedBox(
-            height: 250,
+            height: 150,
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Center(
@@ -169,6 +178,73 @@ class BMIPage extends StatelessWidget {
               ),
             )),
       ),
+    );
+  }
+
+  // User details
+  Widget _userDetails() {
+    return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "John Doe",
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    )
+                  ],
+                ),
+                SizedBox(
+                  height: 10,
+                ),
+                _oneDetail("Age", "25"),
+                _oneDetail("Height", "175 cm"),
+                _oneDetail("Weight", "70 kg"),
+                _oneDetail("Target Calories", "2000 kcal"),
+              ],
+            )));
+  }
+
+  // One detial
+  Widget _oneDetail(String title, String value) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 10,
+        ),
+        Row(children: [
+          SizedBox(
+            width: 20,
+          ),
+          SizedBox(
+            width: 150,
+            child: Text(
+              title,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          SizedBox(
+            width: 50,
+          ),
+          Expanded(
+              child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(value, style: TextStyle(fontSize: 18)))),
+        ]),
+        SizedBox(
+          height: 10,
+        ),
+        Container(
+          width: double.infinity,
+          height: 2,
+          color: Colors.grey[300],
+        )
+      ],
     );
   }
 }

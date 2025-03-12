@@ -1,9 +1,12 @@
+import 'package:calories_tracker/models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // Landing Page
 class LandingPage extends StatelessWidget {
-  const LandingPage({super.key});
+  final UserModel? user;
+
+  const LandingPage({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
