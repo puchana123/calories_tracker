@@ -6,9 +6,9 @@ import 'package:calories_tracker/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatefulWidget {
-  final String username;
+  final String uid;
 
-  const HomePage({super.key, required this.username});
+  const HomePage({super.key, required this.uid});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -29,17 +29,25 @@ class _HomePageState extends State<HomePage> {
   Future<void> _fetchUserDetails() async {
     FirebaseService firebaseService = FirebaseService();
     UserModel? fetchedUser =
-        await firebaseService.getUserDetalis(widget.username);
+        await firebaseService.getUserDetalis(widget.uid);
 
     setState(() {
       _user = fetchedUser;
       _isLoading = false;
 
-      _pages = [
-        BMIPage(user: _user),
-        LandingPage(user: _user),
-        HistoryPage(user: _user),
-      ];
+      if(_user != null){
+        _pages = [
+          BMIPage(user: _user, firebaseService: firebaseService),
+          LandingPage(user: _user),
+          HistoryPage(user: _user),
+        ];
+      }else{
+        _pages = [
+          Center(child: Text("User not found"),),
+          Center(child: Text("User not found"),),
+          Center(child: Text("User not found"),)
+        ];
+      }
     });
   }
 

@@ -1,25 +1,31 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
+  String uid;
   String name;
-  String username;
+  String email;
   int age;
   int weight;
   int height;
   int targetCal;
 
   UserModel({
+    required this.uid,
     required this.name,
-    required this.username,
+    required this.email,
     required this.age,
     required this.weight,
     required this.height,
     required this.targetCal,
   });
 
-  // Convert Firestore data to Dart object
-  factory UserModel.fromMap(Map<String, dynamic> data) {
+   // Convert Firestore document to Dart object
+  factory UserModel.fromDocument(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return UserModel(
+      uid: doc.id,  // Get UID from Firestore document ID
       name: data['name'],
-      username: data['username'],
+      email: data['email'],
       age: data['age'],
       weight: data['weight'],
       height: data['height'],

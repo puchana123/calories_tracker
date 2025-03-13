@@ -1,13 +1,20 @@
 import 'package:calories_tracker/models/user_model.dart';
+import 'package:calories_tracker/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // BMI Page
-class BMIPage extends StatelessWidget {
+class BMIPage extends StatefulWidget {
   final UserModel? user;
+  final FirebaseService firebaseService;
 
-  const BMIPage({super.key, required this.user});
+  const BMIPage({super.key, required this.user, required this.firebaseService});
 
+  @override
+  State<BMIPage> createState() => _BMIPageState();
+}
+
+class _BMIPageState extends State<BMIPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -29,14 +36,17 @@ class BMIPage extends StatelessWidget {
                 SizedBox(
                   height: 20,
                 ),
-
                 // BMI Card
                 _bmiCard(),
-
                 SizedBox(
                   height: 10,
                 ),
-                // Update Weight Button
+                // Line Chart
+                _weightChart(),
+                SizedBox(
+                  height: 10,
+                ),
+                // Update Details Button
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -54,10 +64,37 @@ class BMIPage extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: 20,
+                  height: 10,
                 ),
-                // Line Chart
-                _weightChart()
+                // Logout Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        await widget.firebaseService.signOut();
+                        if (mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                              context, '/', (Route<dynamic> route) => false);
+                        }
+                      } catch (e) {
+                        print("Error signing out: $e");
+                        _showError("Sign Out Error",
+                            "There was an error signing you out.");
+                      }
+                    },
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    child: Text(
+                      "Log Out",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -193,7 +230,7 @@ class BMIPage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "John Doe",
+                      widget.user?.name ?? "User",
                       style:
                           TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     )
@@ -202,10 +239,11 @@ class BMIPage extends StatelessWidget {
                 SizedBox(
                   height: 10,
                 ),
-                _oneDetail("Age", "25"),
-                _oneDetail("Height", "175 cm"),
-                _oneDetail("Weight", "70 kg"),
-                _oneDetail("Target Calories", "2000 kcal"),
+                _oneDetail("Age", widget.user?.age.toString() ?? "25"),
+                _oneDetail("Height", "${widget.user?.height ?? "N/A"} cm"),
+                _oneDetail("Weight", "${widget.user?.weight ?? "N/A"} kg"),
+                _oneDetail("Target Calories",
+                    "${widget.user?.targetCal ?? "N/A"} kcal"),
               ],
             )));
   }
@@ -246,5 +284,23 @@ class BMIPage extends StatelessWidget {
         )
       ],
     );
+  }
+
+  void _showError(String title, String message) {
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text("OK"))
+            ],
+          );
+        });
   }
 }

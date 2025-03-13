@@ -21,7 +21,9 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const LoginPage(),
+      routes: {
+        '/': (context) => const LoginPage(),
+      },
     );
   }
 }
