@@ -28,24 +28,29 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _fetchUserDetails() async {
     FirebaseService firebaseService = FirebaseService();
-    UserModel? fetchedUser =
-        await firebaseService.getUserDetalis(widget.uid);
+    UserModel? fetchedUser = await firebaseService.getUserDetalis(widget.uid);
 
     setState(() {
       _user = fetchedUser;
       _isLoading = false;
 
-      if(_user != null){
+      if (_user != null) {
         _pages = [
           BMIPage(user: _user, firebaseService: firebaseService),
-          LandingPage(user: _user),
+          LandingPage(user: _user, firebaseService: firebaseService),
           HistoryPage(user: _user),
         ];
-      }else{
+      } else {
         _pages = [
-          Center(child: Text("User not found"),),
-          Center(child: Text("User not found"),),
-          Center(child: Text("User not found"),)
+          Center(
+            child: Text("User not found"),
+          ),
+          Center(
+            child: Text("User not found"),
+          ),
+          Center(
+            child: Text("User not found"),
+          )
         ];
       }
     });

@@ -1,4 +1,5 @@
 import 'package:calories_tracker/models/user_model.dart';
+import 'package:calories_tracker/pages/widgets/edit_user_details.dart';
 import 'package:calories_tracker/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -51,7 +52,33 @@ class _BMIPageState extends State<BMIPage> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () async {
+                      final updatedUser = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EditUserDetails(
+                              user: widget.user!,
+                              firebaseService: widget.firebaseService),
+                        ),
+                      );
+                      if (updatedUser != null) {
+                        // Show snackbar
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text("User details updated successfully!"),
+                            duration: Duration(seconds: 3),
+                          ));
+                        }
+                        // refresh the bmi page
+                        setState(() {
+                          // update the user details
+                          widget.user?.age = updatedUser.age;
+                          widget.user?.height = updatedUser.height;
+                          widget.user?.weight = updatedUser.weight;
+                          widget.user?.targetCal = updatedUser.targetCal;
+                        });
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange),
                     child: Text(
@@ -105,6 +132,31 @@ class _BMIPageState extends State<BMIPage> {
 
   // BMI Card
   Widget _bmiCard() {
+    int weight = widget.user?.weight ?? 0;
+    int height = widget.user?.height ?? 0;
+    double bmi = 0;
+    String bmiStatus = "Normal";
+    Color bmiColor = Colors.green;
+
+    if (weight > 0 && height > 0) {
+      bmi = double.parse(
+          (weight / ((height / 100) * (height / 100))).toStringAsFixed(1));
+    }
+
+    if (bmi < 18.5) {
+      bmiStatus = "Underweight";
+      bmiColor = Colors.yellow;
+    } else if (bmi >= 18.5 && bmi < 24.9) {
+      bmiStatus = "Normal";
+      bmiColor = Colors.green;
+    } else if (bmi >= 25 && bmi < 29.9) {
+      bmiStatus = "Overweight";
+      bmiColor = Colors.orange;
+    } else {
+      bmiStatus = "Obese";
+      bmiColor = Colors.red;
+    }
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
@@ -115,20 +167,20 @@ class _BMIPageState extends State<BMIPage> {
             Container(
               height: 150,
               decoration:
-                  BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                  BoxDecoration(color: bmiColor, shape: BoxShape.circle),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "20.0",
+                      bmi.toString(),
                       style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
                           color: Colors.white),
                     ),
                     Text(
-                      "Normal",
+                      bmiStatus,
                       style: TextStyle(fontSize: 18, color: Colors.white),
                     )
                   ],
@@ -239,7 +291,7 @@ class _BMIPageState extends State<BMIPage> {
                 SizedBox(
                   height: 10,
                 ),
-                _oneDetail("Age", widget.user?.age.toString() ?? "25"),
+                _oneDetail("Age", widget.user?.age.toString() ?? "N/A"),
                 _oneDetail("Height", "${widget.user?.height ?? "N/A"} cm"),
                 _oneDetail("Weight", "${widget.user?.weight ?? "N/A"} kg"),
                 _oneDetail("Target Calories",
