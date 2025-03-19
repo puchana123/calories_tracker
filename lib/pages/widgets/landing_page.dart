@@ -1,5 +1,6 @@
 import 'package:calories_tracker/models/daily_calories_model.dart';
 import 'package:calories_tracker/models/user_model.dart';
+import 'package:calories_tracker/pages/widgets/add_calories.dart';
 import 'package:calories_tracker/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -55,72 +56,6 @@ class _LandingPageState extends State<LandingPage> {
       _dailyCalories = dailyCalories;
       _isLoading = false;
     });
-  }
-
-  // TODO: Implement the button to work correctly
-  // Show add calories dialog
-  Future<void> _showAddCaloriesDialog(String type) async {
-    final caloriesController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    await showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text("Add $type Calories"),
-            content: Form(
-              key: formKey,
-              child: TextFormField(
-                controller: caloriesController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: "Enter $type calories",
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter calories';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  if (formKey.currentState!.validate()) {
-                    int calories = int.parse(caloriesController.text);
-                    DailyCalories updatedDailyCalories = DailyCalories(
-                        date: _dailyCalories!.date,
-                        consumed: _dailyCalories!.consumed,
-                        burned: _dailyCalories!.burned);
-                    if (type == 'Consume') {
-                      updatedDailyCalories.consumed += calories;
-                    } else {
-                      updatedDailyCalories.burned += calories;
-                    }
-                    await widget.firebaseService.addDailyCalories(
-                        widget.user!.uid,
-                        updatedDailyCalories..id = _dailyCalories!.id);
-                    Navigator.pop(context);
-
-                    if (mounted) {
-                      Navigator.pop(context);
-                      await _fetchDailyCalories(); // Update daily calories
-                    }
-                  }
-                },
-                child: const Text('Add'),
-              )
-            ],
-          );
-        });
   }
 
   @override
@@ -211,11 +146,32 @@ class _LandingPageState extends State<LandingPage> {
                     SizedBox(height: 10),
 
                     // Buttons
-                    _customButton("Add Consume", Colors.orange,
-                        () => _showAddCaloriesDialog("Consume")),
-                    SizedBox(height: 10),
-                    _customButton("Add Workout", Colors.green,
-                        () => _showAddCaloriesDialog("Burned")),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => AddCalories(
+                                        dailyCalories: _dailyCalories!,
+                                        userId: widget.user!.uid,
+                                        firebaseService: widget.firebaseService,
+                                        onCaloriesAdded: _fetchDailyCalories,
+                                      )));
+                        },
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange),
+                        child: Text(
+                          "Add Calories",
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black),
+                        ),
+                      ),
+                    )
                   ],
                 ),
               ),
@@ -304,22 +260,5 @@ class _LandingPageState extends State<LandingPage> {
           width: 16,
           borderRadius: BorderRadius.circular(8))
     ]);
-  }
-
-  // Buttons
-  Widget _customButton(String text, Color color, Function() onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(backgroundColor: color),
-        child: Text(
-          text,
-          style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
-        ),
-      ),
-    );
   }
 }
