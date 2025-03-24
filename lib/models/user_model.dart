@@ -19,11 +19,11 @@ class UserModel {
     required this.targetCal,
   });
 
-   // Convert Firestore document to Dart object
+  // Convert Firestore document to Dart object
   factory UserModel.fromDocument(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return UserModel(
-      uid: doc.id,  // Get UID from Firestore document ID
+      uid: doc.id, // Get UID from Firestore document ID
       name: data['name'],
       email: data['email'],
       age: data['age'],
@@ -31,5 +31,16 @@ class UserModel {
       height: data['height'],
       targetCal: data['targetCal'],
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'email': email,
+      'age': age,
+      'weight': weight,
+      'height': height,
+      'targetCal': targetCal,
+    };
   }
 }

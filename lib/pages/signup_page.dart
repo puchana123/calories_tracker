@@ -22,6 +22,18 @@ class _SignupPageState extends State<SignupPage> {
   final TextEditingController _heightController = TextEditingController();
 
   bool _termsAccepted = false;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
+    _heightController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +43,7 @@ class _SignupPageState extends State<SignupPage> {
         ),
         body: Stack(children: [
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               image: DecorationImage(
                 image: AssetImage('assets/login_background.jpg'),
                 fit: BoxFit.cover,
@@ -40,8 +52,8 @@ class _SignupPageState extends State<SignupPage> {
           ),
           Center(
             child: Container(
-              padding: EdgeInsets.all(20),
-              margin: EdgeInsets.symmetric(horizontal: 30),
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 30),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -54,13 +66,13 @@ class _SignupPageState extends State<SignupPage> {
                 ],
               ),
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Form(
                   key: _formkey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text("Sign Up",
+                      const Text("Sign Up",
                           style: TextStyle(
                               fontSize: 24, fontWeight: FontWeight.bold)),
                       SizedBox(height: 20),
@@ -69,7 +81,6 @@ class _SignupPageState extends State<SignupPage> {
                       _buildPasswordTextField(),
                       _buildConfirmPasswordTextField(),
                       _buildAgeField(),
-                      // Input fields 2 columns
                       Row(
                         children: [
                           Expanded(
@@ -95,29 +106,45 @@ class _SignupPageState extends State<SignupPage> {
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
+                      if (!_termsAccepted &&
+                          _formkey.currentState?.validate() == true)
+                        Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              "Please accept the terms and conditions.",
+                              style: TextStyle(color: Colors.red),
+                            )),
                       ElevatedButton(
-                          onPressed: () async {
-                            if (_formkey.currentState!.validate() &&
-                                _termsAccepted) {
-                              // Sign up new user
-                              await _signUpUser();
-                            } else if (!_termsAccepted) {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(
-                                content: Text(
-                                    "Please accept the terms and conditions."),
-                              ));
-                            }
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () async {
+                                  if (_formkey.currentState!.validate() &&
+                                      _termsAccepted) {
+                                    setState(() {
+                                      _isLoading = true;
+                                    });
+                                    // Sign up new user
+                                    await _signUpUser();
+                                    if (mounted) {
+                                      setState(() {
+                                        _isLoading = false;
+                                      });
+                                    }
+                                  }
+                                },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.purple,
+                            backgroundColor: Colors.orange,
                             minimumSize: Size(double.infinity, 50),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: Text("Sign Up",
-                              style: TextStyle(color: Colors.white))),
+                          child: _isLoading
+                              ? CircularProgressIndicator(
+                                  color: Colors.black,
+                                )
+                              : Text("Sign Up",
+                                  style: TextStyle(color: Colors.white))),
                     ],
                   ),
                 ),
@@ -139,14 +166,21 @@ class _SignupPageState extends State<SignupPage> {
 
       await _firebaseService.signUp(email, password, name, age, weight, height);
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text("Sign Up Successful"),
-      ));
-      Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("Sign Up Successful! Please sign in to continue."),
+          duration: Duration(seconds: 3),
+        ));
+        Navigator.pop(context);
+      }
     } on FirebaseAuthException catch (e) {
-      _showError("Error during sign up", e.message ?? "An error occurred");
+      if (mounted) {
+        _showError("Error during sign up", e.message ?? "An error occurred");
+      }
     } catch (e) {
-      _showError("Error during sign up", "Error occurred: $e");
+      if (mounted) {
+        _showError("Error during sign up", "Error occurred: $e");
+      }
     }
   }
 
@@ -249,8 +283,8 @@ class _SignupPageState extends State<SignupPage> {
             return 'Please enter some text';
           }
           int? age = int.tryParse(value);
-          if (age == null || age < 0 || age > 150) {
-            return 'Age must be between 0 and 150';
+          if (age == null || age < 1 || age > 150) {
+            return 'Age must be between 1 and 150';
           }
           return null;
         },
@@ -272,10 +306,17 @@ class _SignupPageState extends State<SignupPage> {
         autovalidateMode: AutovalidateMode.onUserInteraction,
         validator: (value) {
           if (value == null || value.isEmpty) {
-            return 'Please enter some text';
+            return 'Please enter your $label.toLowerCase()';
           }
-          if (int.tryParse(value) == null) {
+          final num = int.tryParse(value);
+          if (num == null) {
             return 'Please enter a valid number';
+          }
+          if (label == "Weight" && (num < 20 || num > 500)) {
+            return 'Weight must be between 20 and 500 kg';
+          }
+          if (label == "Height" && (num < 50 || num > 300)) {
+            return 'Height must be between 50 and 300 cm';
           }
           return null;
         },
@@ -284,19 +325,21 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   void _showError(String title, String message) {
-    showDialog(context: context, builder: (BuildContext context){
-      return AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: <Widget>[
-          TextButton(
-            onPressed: (){
-              Navigator.of(context).pop();
-            },
-            child: Text("OK"),
-          ),
-        ],
-      );
-    });
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text("OK"),
+              ),
+            ],
+          );
+        });
   }
 }

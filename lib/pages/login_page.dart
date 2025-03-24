@@ -21,6 +21,13 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -32,16 +39,14 @@ class _LoginPageState extends State<LoginPage> {
             _emailController.text.trim(), _passwordController.text.trim());
         if (uid != null) {
           _showSnackBar("Login successful");
-          // Navigate to home page after successful login
-          Future.delayed(Duration(milliseconds: 800), (){
+          if(mounted){
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                  builder: (context) => HomePage(
-                        uid: uid,
-                      )));
-          });
-          
+                builder: (context) => HomePage(uid: uid),
+              ),
+            );
+          }
         }
       } on FirebaseAuthException catch (e) {
         if (e.code == 'invalid-credential' ||
@@ -55,9 +60,11 @@ class _LoginPageState extends State<LoginPage> {
       } catch (e) {
         _showErrorDialog("Error during sign in", "Error signing in: $e");
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if(mounted){
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -77,7 +84,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
           Center(
             child: Container(
-              padding: EdgeInsets.all(20),
+              padding: EdgeInsets.all(16),
               margin: EdgeInsets.symmetric(horizontal: 30),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -90,85 +97,90 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ],
               ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Calories Tracker',
-                      style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 20),
-                    TextFormField(
-                      autofocus: true,
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Calories Tracker',
+                        style:
+                            TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        } // Regular expression for validating email format
-                        String pattern =
-                            r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
-                        RegExp regex = RegExp(pattern);
-                        if (!regex.hasMatch(value)) {
-                          return 'Please enter a valid email address';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 10),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        border: OutlineInputBorder(),
+                      SizedBox(height: 20),
+                      TextFormField(
+                        autofocus: true,
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          border: OutlineInputBorder(),
+                        ),
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your email';
+                          }
+                          String pattern =
+                              r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
+                          RegExp regex = RegExp(pattern);
+                          if (!regex.hasMatch(value)) {
+                            return 'Please enter a valid email address';
+                          }
+                          return null;
+                        },
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters long';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple,
-                        minimumSize: Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      SizedBox(height: 10),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          border: OutlineInputBorder(),
+                        ),
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters long';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _login,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          minimumSize: Size(double.infinity, 50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? CircularProgressIndicator(color: Colors.black,)
+                            : Text('Login',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                      
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const SignupPage()));
+                        },
+                        child: Text(
+                          'SignUp',
+                          style: TextStyle(
+                              color: Colors.orange, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      child: _isLoading
-                          ? Text("Loading...", style: TextStyle(color: Colors.white))
-                          : Text('Login',
-                              style: TextStyle(color: Colors.white)),
-                    ),
-                    SizedBox(height: 10),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const SignupPage()));
-                      },
-                      child: Text(
-                        'SignUp',
-                        style: TextStyle(
-                            color: Colors.purple, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

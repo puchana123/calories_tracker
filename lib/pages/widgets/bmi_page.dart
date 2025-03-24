@@ -2,22 +2,39 @@ import 'package:calories_tracker/models/user_model.dart';
 import 'package:calories_tracker/pages/widgets/edit_user_details.dart';
 import 'package:calories_tracker/services/firebase_service.dart';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 // BMI Page
 class BMIPage extends StatefulWidget {
   final UserModel? user;
   final FirebaseService firebaseService;
+  final Function(UserModel)? onUserUpdated;
 
-  const BMIPage({super.key, required this.user, required this.firebaseService});
+  const BMIPage(
+      {super.key,
+      required this.user,
+      required this.firebaseService,
+      this.onUserUpdated});
 
   @override
   State<BMIPage> createState() => _BMIPageState();
 }
 
 class _BMIPageState extends State<BMIPage> {
+  bool _isLoading = false;
+
   @override
   Widget build(BuildContext context) {
+    if (widget.user == null) {
+      return Scaffold(
+        body: Center(
+            child: Text(
+          "User not found",
+          style: TextStyle(
+              fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey),
+        )),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: Padding(
@@ -31,7 +48,7 @@ class _BMIPageState extends State<BMIPage> {
                 ),
 
                 Text(
-                  "Today",
+                  "BMI Calculator",
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(
@@ -42,84 +59,105 @@ class _BMIPageState extends State<BMIPage> {
                 SizedBox(
                   height: 10,
                 ),
-                // Line Chart
-                _weightChart(),
-                SizedBox(
-                  height: 10,
-                ),
+
                 // Update Details Button
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () async {
-                      final updatedUser = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditUserDetails(
-                              user: widget.user!,
-                              firebaseService: widget.firebaseService),
-                        ),
-                      );
-                      if (updatedUser != null) {
-                        // Show snackbar
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text("User details updated successfully!"),
-                            duration: Duration(seconds: 3),
-                          ));
-                        }
-                        // refresh the bmi page
-                        setState(() {
-                          // update the user details
-                          widget.user?.age = updatedUser.age;
-                          widget.user?.height = updatedUser.height;
-                          widget.user?.weight = updatedUser.weight;
-                          widget.user?.targetCal = updatedUser.targetCal;
-                        });
-                      }
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            setState(() {
+                              _isLoading = true;
+                            });
+                            final updatedUser = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditUserDetails(
+                                    user: widget.user!,
+                                    firebaseService: widget.firebaseService),
+                              ),
+                            );
+                            if (updatedUser != null) {
+                              // Show snackbar
+                              if (mounted) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(
+                                  content: Text(
+                                      "User details updated successfully!"),
+                                  duration: Duration(seconds: 3),
+                                ));
+                                widget.onUserUpdated?.call(updatedUser);
+                              }
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = false;
+                                });
+                              }
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange),
-                    child: Text(
-                      "Update Details",
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black),
-                    ),
+                    child: _isLoading
+                        ? CircularProgressIndicator(
+                            color: Colors.black,
+                          )
+                        : Text(
+                            "Update Details",
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black),
+                          ),
                   ),
                 ),
                 SizedBox(
                   height: 10,
                 ),
+
                 // Logout Button
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        await widget.firebaseService.signOut();
-                        if (mounted) {
-                          Navigator.pushNamedAndRemoveUntil(
-                              context, '/', (Route<dynamic> route) => false);
-                        }
-                      } catch (e) {
-                        print("Error signing out: $e");
-                        _showError("Sign Out Error",
-                            "There was an error signing you out.");
-                      }
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            setState(() {
+                              _isLoading = true;
+                            });
+                            try {
+                              await widget.firebaseService.signOut();
+                              if (mounted) {
+                                Navigator.pushNamedAndRemoveUntil(context, '/',
+                                    (Route<dynamic> route) => false);
+                              }
+                            } catch (e) {
+                              print("Error signing out: $e");
+                              _showError("Sign Out Error",
+                                  "There was an error signing you out.");
+                            } finally {
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = false;
+                                });
+                              }
+                            }
+                          },
                     style:
                         ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    child: Text(
-                      "Log Out",
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black),
-                    ),
+                    child: _isLoading
+                        ? CircularProgressIndicator(
+                            color: Colors.black,
+                          )
+                        : Text(
+                            "Log Out",
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black),
+                          ),
                   ),
                 ),
               ],
@@ -135,30 +173,30 @@ class _BMIPageState extends State<BMIPage> {
     int weight = widget.user?.weight ?? 0;
     int height = widget.user?.height ?? 0;
     double bmi = 0;
-    String bmiStatus = "Normal";
-    Color bmiColor = Colors.green;
+    String bmiStatus = "Unknown";
+    Color bmiColor = Colors.grey;
 
     if (weight > 0 && height > 0) {
       bmi = double.parse(
           (weight / ((height / 100) * (height / 100))).toStringAsFixed(1));
-    }
-
-    if (bmi < 18.5) {
-      bmiStatus = "Underweight";
-      bmiColor = Colors.yellow;
-    } else if (bmi >= 18.5 && bmi < 24.9) {
-      bmiStatus = "Normal";
-      bmiColor = Colors.green;
-    } else if (bmi >= 25 && bmi < 29.9) {
-      bmiStatus = "Overweight";
-      bmiColor = Colors.orange;
-    } else {
-      bmiStatus = "Obese";
-      bmiColor = Colors.red;
+      if (bmi < 18.5) {
+        bmiStatus = "Underweight";
+        bmiColor = Colors.yellow;
+      } else if (bmi >= 18.5 && bmi < 24.9) {
+        bmiStatus = "Normal";
+        bmiColor = Colors.green;
+      } else if (bmi >= 25 && bmi < 29.9) {
+        bmiStatus = "Overweight";
+        bmiColor = Colors.orange;
+      } else if (bmi >= 30) {
+        bmiStatus = "Obese";
+        bmiColor = Colors.red;
+      }
     }
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -166,8 +204,17 @@ class _BMIPageState extends State<BMIPage> {
             // BMI Calculator
             Container(
               height: 150,
-              decoration:
-                  BoxDecoration(color: bmiColor, shape: BoxShape.circle),
+              width: 150,
+              decoration: BoxDecoration(
+                  color: bmiColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    )
+                  ]),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -193,79 +240,6 @@ class _BMIPageState extends State<BMIPage> {
             _userDetails()
           ],
         ),
-      ),
-    );
-  }
-
-  // Weigth Chart
-  Widget _weightChart() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SizedBox(
-            height: 150,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Center(
-                child: LineChart(LineChartData(
-                    titlesData: FlTitlesData(
-                      topTitles:
-                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles:
-                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      leftTitles:
-                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (double value, TitleMeta meta) {
-                          List<String> labels = [
-                            "SEP",
-                            "OCT",
-                            "NOV",
-                            "DEC",
-                            "JAN",
-                            "FEB"
-                          ];
-                          int index = value.toInt();
-                          if (index >= 0 && index < labels.length) {
-                            return SideTitleWidget(
-                                meta: meta,
-                                space: 6,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 3.0),
-                                  child: Text(
-                                    labels[index],
-                                    style: TextStyle(
-                                        fontSize: 12, color: Colors.grey[600]),
-                                  ),
-                                ));
-                          }
-                          return Container();
-                        },
-                        interval: 1,
-                      )),
-                    ),
-                    gridData: FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    lineBarsData: [
-                      LineChartBarData(
-                          spots: [
-                            FlSpot(0, 5),
-                            FlSpot(1, 4),
-                            FlSpot(2, 6),
-                            FlSpot(3, 5),
-                            FlSpot(4, 7),
-                            FlSpot(5, 8),
-                          ],
-                          isCurved: true,
-                          color: Colors.blue,
-                          barWidth: 3,
-                          belowBarData: BarAreaData(show: false))
-                    ])),
-              ),
-            )),
       ),
     );
   }
@@ -304,35 +278,17 @@ class _BMIPageState extends State<BMIPage> {
   Widget _oneDetail(String title, String value) {
     return Column(
       children: [
-        SizedBox(
-          height: 10,
+        ListTile(
+          title: Text(title,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          trailing: Text(
+            value,
+            style: TextStyle(fontSize: 18),
+          ),
         ),
-        Row(children: [
-          SizedBox(
-            width: 20,
-          ),
-          SizedBox(
-            width: 150,
-            child: Text(
-              title,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          SizedBox(
-            width: 50,
-          ),
-          Expanded(
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(value, style: TextStyle(fontSize: 18)))),
-        ]),
-        SizedBox(
-          height: 10,
-        ),
-        Container(
-          width: double.infinity,
-          height: 2,
+        Divider(
           color: Colors.grey[300],
+          height: 1,
         )
       ],
     );

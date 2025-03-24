@@ -17,9 +17,8 @@ class DailyCalories {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
     return DailyCalories(
-      id: doc.id,
-      date:
-          (data['date'] as Timestamp).toDate(), // Convert Timestamp to DateTime
+      id: doc.id, // YYYY-MM-DD
+      date: (data['date'] as Timestamp).toDate(),
       consumed: data['consumed'],
       burned: data['burned'],
     );
@@ -27,10 +26,7 @@ class DailyCalories {
 
   Map<String, dynamic> toMap() {
     return {
-      'date': Timestamp.fromDate(date), // Convert DateTime to Timestamp
-      'year': date.year,
-      'month': date.month,
-      'day': date.day,
+      'date': Timestamp.fromDate(date),
       'consumed': consumed,
       'burned': burned,
     };

@@ -7,19 +7,23 @@ class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<UserModel?> getUserDetalis(String uid) async {
-    print("Fetching user details for UID: $uid");
-    try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection("userDetails").doc(uid).get();
+  // Helper to format date as "YYYY-MM-DD"
+  String _formatDate(DateTime date) {
+    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
 
-      if (userDoc.exists) {
-        print("User details found for UID: $uid");
-        return UserModel.fromDocument(userDoc);
-      } else {
-        print("User details not found for UID: $uid");
-        return null;
+  // Get user details
+  Future<UserModel?> getUser(String userId) async {
+    print("Fetching user details for UID: $userId");
+    try {
+      DocumentSnapshot doc =
+          await _firestore.collection("users").doc(userId).get();
+
+      if (doc.exists) {
+        print("User details found for UID: $userId");
+        return UserModel.fromDocument(doc);
       }
+      return null;
     } catch (e) {
       print("Error fetching user details: $e");
       return null;
@@ -28,30 +32,29 @@ class FirebaseService {
 
   Future<void> signUp(String email, String password, String name, int age,
       int weight, int height) async {
-    print("Signing up with Email: $email, Password: $password");
     try {
+      // Create user with email and password
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
               email: email.trim(), password: password.trim());
-      String uid = userCredential.user!.uid;
+      String userId = userCredential.user!.uid;
 
-      // Store additional user details in Firestore
-      await _firestore.collection("userDetails").doc(uid).set({
-        "email": email.trim(),
-        "name": name,
-        "age": age,
-        "weight": weight,
-        "height": height,
-        "targetCal": 2000,
-      });
+      UserModel user = UserModel(
+        uid: userId,
+        name: name,
+        email: email,
+        age: age,
+        weight: weight,
+        height: height,
+        targetCal: 2000,
+      );
 
-      print("User signed up successfully, UID: $uid");
-    } on FirebaseAuthException catch (e) {
-      print("Firebase Auth Error signing up: ${e.message}");
-      throw e;
+      await _firestore.collection('users').doc(userId).set(user.toMap());
+
+      print("User signed up successfully, UID: $userId");
     } catch (e) {
       print("Error signing up: $e");
-      throw e;
+      rethrow;
     }
   }
 
@@ -86,13 +89,7 @@ class FirebaseService {
   Future<void> updateUserDetails(UserModel user) async {
     print("Updating user details for UID: ${user.uid}");
     try {
-      await _firestore.collection("userDetails").doc(user.uid).update({
-        "name": user.name,
-        "age": user.age,
-        "weight": user.weight,
-        "height": user.height,
-        "targetCal": user.targetCal,
-      });
+      await _firestore.collection("users").doc(user.uid).update(user.toMap());
       print("User details updated successfully for UID: ${user.uid}");
     } catch (e) {
       print("Error updating user details: $e");
@@ -100,57 +97,94 @@ class FirebaseService {
     }
   }
 
-  Future<DailyCalories?> getDailyCalories(String uid, DateTime date) async {
-    print("Fetching daily calories for UID: $uid on Date: $date");
+  // Get daily calories for a specific user and date
+  Future<DailyCalories?> getDailyCalories(String userId, DateTime date) async {
+    print("Fetching daily calories for UID: $userId on Date: $date");
     try {
-      // Extract year, month, and day
-      int year = date.year;
-      int month = date.month;
-      int day = date.day;
-
-      QuerySnapshot querySnapshot = await _firestore
-          .collection("caloriesTrack")
-          .where("uid", isEqualTo: uid)
-          .where("year", isEqualTo: year)
-          .where("month", isEqualTo: month)
-          .where("day", isEqualTo: day)
+      String docId = _formatDate(date);
+      DocumentSnapshot doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('caloriesTrack')
+          .doc(docId)
           .get();
-
-      if (querySnapshot.docs.isNotEmpty) {
-        print("Daily calories found for UID: $uid on Date: $date");
-        DailyCalories dailyCalories =
-            DailyCalories.fromDocument(querySnapshot.docs.first);
-        dailyCalories.id = querySnapshot.docs.first.id;
-        return dailyCalories;
-      } else {
-        print("No daily calories found for UID: $uid on Date: $date");
-        return null;
+      if (doc.exists) {
+        return DailyCalories.fromDocument(doc);
       }
+      return null;
     } catch (e) {
       print("Error fetching daily calories: $e");
-      return null;
+      rethrow;
     }
   }
 
-  Future<void> addDailyCalories(String uid, DailyCalories dailyCalories) async {
-    print("Update daily calories for UID: $uid on Date: ${dailyCalories.date}");
+  // Add daily calories if it doesn’t exist for the day
+  Future<DailyCalories> addDailyCalories(
+      String userId, DailyCalories dailyCalories) async {
+    print(
+        "Adding daily calories for UID: $userId on Date: ${dailyCalories.date}");
 
     try {
-      if (dailyCalories.id != null) {
-        // If Id exists, update the document
-        await _firestore
-            .collection("caloriesTrack")
-            .doc(dailyCalories.id)
-            .update(dailyCalories.toMap());
-      } else {
-        // If Id doesn't exist, add a new document
-        await _firestore.collection("caloriesTrack").add({
-              "uid": uid,
-            }..addAll(dailyCalories.toMap()));
+      String docId = _formatDate(dailyCalories.date);
+      DocumentReference docRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('caloriesTrack')
+          .doc(docId);
+      // Check if it exists
+      DocumentSnapshot existingDoc = await docRef.get();
+      if (existingDoc.exists) {
+        return DailyCalories.fromDocument(existingDoc);
       }
+      // Add new document with date-based ID
+      await docRef.set(dailyCalories.toMap());
+      dailyCalories.id = docId;
+      return dailyCalories;
     } catch (e) {
       print("Error adding daily calories: $e");
       throw e;
+    }
+  }
+
+  // Update existing daily calories
+  Future<DailyCalories> updateDailyCalories(
+      String userId, DailyCalories dailyCalories) async {
+    print("Updating daily calories for UID: ${dailyCalories.id}");
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('caloriesTrack')
+          .doc(dailyCalories.id)
+          .set(dailyCalories.toMap(), SetOptions(merge: true));
+      return dailyCalories;
+    } catch (e) {
+      print("Error updating daily calories: $e");
+      rethrow;
+    }
+  }
+
+  // Fetch weekly calories for a user
+  Future<List<DailyCalories>> getWeeklyCalories({
+    required String userId,
+    required DateTime startOfWeek,
+    required DateTime endOfWeek,
+  }) async {
+    print("Fetching weekly calories for UID: $userId");
+    try {
+      QuerySnapshot query = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('caloriesTrack')
+          .where('date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeek))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfWeek))
+          .get();
+
+      return query.docs.map((doc) => DailyCalories.fromDocument(doc)).toList();
+    } catch (e) {
+      print("Error fetching weekly calories: $e");
+      return [];
     }
   }
 }

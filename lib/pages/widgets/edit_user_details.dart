@@ -19,6 +19,7 @@ class _EditUserDetailsState extends State<EditUserDetails> {
   late TextEditingController _weightController;
   late TextEditingController _heightController;
   late TextEditingController _targetCalController;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -41,6 +42,71 @@ class _EditUserDetailsState extends State<EditUserDetails> {
     super.dispose();
   }
 
+  void _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      int newAge = int.parse(_ageController.text);
+      int newWeight = int.parse(_weightController.text);
+      int newHeight = int.parse(_heightController.text);
+      int newTargetCal = int.parse(_targetCalController.text);
+
+      // Create a new UserModel object with updated details
+      UserModel updatedUser = UserModel(
+        uid: widget.user.uid,
+        email: widget.user.email,
+        name: widget.user.name,
+        age: newAge,
+        weight: newWeight,
+        height: newHeight,
+        targetCal: newTargetCal,
+      );
+
+      // Update the user details in Firestor
+      try {
+        await widget.firebaseService.updateUserDetails(updatedUser);
+        // Return updated user details to previous screen
+        if (mounted) {
+          Navigator.pop(context, updatedUser);
+        }
+      } catch (e) {
+        print("Error updating user details: $e");
+        if (mounted) {
+          _showError(
+              "Update Error", "An error occurred while updating user details.");
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
+  void _showError(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("OK"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,156 +114,156 @@ class _EditUserDetailsState extends State<EditUserDetails> {
           title: const Text('Edit User Details'),
         ),
         body: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 50),
+            padding: const EdgeInsets.all(16),
             child: Form(
                 key: _formKey,
-                child: Column(children: [
-                  // Name
-                  Row(
-                    children: [
-                      SizedBox(
-                          width: 80,
+                child: SingleChildScrollView(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Name
+                        Center(
                           child: Text(
-                            "Name",
+                            widget.user.name,
                             style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          )),
-                      SizedBox(width: 50),
-                      Expanded(
-                          child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(widget.user.name,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                  )))),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  // Age
-                  TextFormField(
-                    controller: _ageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Age',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your age';
-                      }
-                      if (int.tryParse(value) == null) {
-                        return 'Please enter a valid number';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 20),
-
-                  // Height
-                  TextFormField(
-                    controller: _heightController,
-                    decoration: const InputDecoration(
-                      labelText: 'Height (cm)',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your height';
-                      }
-                      if (int.tryParse(value) == null) {
-                        return 'Please enter a valid number';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 20),
-
-                  // Weight
-                  TextFormField(
-                    controller: _weightController,
-                    decoration: const InputDecoration(
-                      labelText: 'Weight (kg)',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your weight';
-                      }
-                      if (int.tryParse(value) == null) {
-                        return 'Please enter a valid number';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 20),
-
-                  // Target Calories
-                  TextFormField(
-                      controller: _targetCalController,
-                      decoration: const InputDecoration(
-                        labelText: 'Target Calories',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your target calories';
-                        }
-                        if (int.tryParse(value) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      }),
-                  SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                        onPressed: () async {
-                          if (_formKey.currentState!.validate()) {
-                            // Update user details
-                            UserModel updatedUser = UserModel(
-                              uid: widget.user.uid,
-                              email: widget.user.email,
-                              name: widget.user.name,
-                              age: int.parse(_ageController.text),
-                              height: int.parse(_heightController.text),
-                              weight: int.parse(_weightController.text),
-                              targetCal: int.parse(_targetCalController.text),
-                            );
-                            // Update the database
-                            await widget.firebaseService
-                                .updateUserDetails(updatedUser);
-
-                            if (mounted) {
-                              Navigator.pop(context, updatedUser);
+                                fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        // Age
+                        TextFormField(
+                          controller: _ageController,
+                          decoration: const InputDecoration(
+                              labelText: 'Age', border: OutlineInputBorder()),
+                          keyboardType: TextInputType.number,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your age';
                             }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
+                            final age = int.tryParse(value);
+                            if (age == null) {
+                              return 'Please enter a valid number';
+                            }
+                            if (age < 1 || age > 150) {
+                              return 'Age must be between 1 and 150';
+                            }
+                            return null;
+                          },
                         ),
-                        child: const Text(
-                          'Confirm',
-                          style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold),
-                        )),
-                  ),
-                  SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+                        SizedBox(height: 16),
+
+                        // Height
+                        TextFormField(
+                          controller: _heightController,
+                          decoration: const InputDecoration(
+                              labelText: 'Height (cm)',
+                              border: OutlineInputBorder()),
+                          keyboardType: TextInputType.number,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your height';
+                            }
+                            final height = int.tryParse(value);
+                            if (height == null) {
+                              return 'Please enter a valid number';
+                            }
+                            if (height < 50 || height > 300) {
+                              return 'Height must be between 50 and 300 cm';
+                            }
+                            return null;
+                          },
                         ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold),
-                        )),
-                  ),
-                ]))));
+                        SizedBox(height: 16),
+
+                        // Weight
+                        TextFormField(
+                          controller: _weightController,
+                          decoration: const InputDecoration(
+                              labelText: 'Weight (kg)',
+                              border: OutlineInputBorder()),
+                          keyboardType: TextInputType.number,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your weight';
+                            }
+                            final weight = int.tryParse(value);
+                            if (weight == null) {
+                              return 'Please enter a valid number';
+                            }
+                            if (weight < 10 || weight > 500) {
+                              return 'Weight must be between 10 and 500 kg';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 16),
+
+                        // Target Calories
+                        TextFormField(
+                            controller: _targetCalController,
+                            decoration: const InputDecoration(
+                                labelText: 'Target Calories',
+                                border: OutlineInputBorder()),
+                            keyboardType: TextInputType.number,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your target calories';
+                              }
+                              final targetCal = int.tryParse(value);
+                              if (targetCal == null) {
+                                return 'Please enter a valid number';
+                              }
+                              if (targetCal < 500 || targetCal > 10000) {
+                                return 'Target calories must be between 500 and 10,000 kcal';
+                              }
+                              return null;
+                            }),
+                        SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                              onPressed: _isLoading ? null : _submitForm,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                              ),
+                              child: _isLoading
+                                  ? const CircularProgressIndicator()
+                                  : const Text(
+                                      'Confirm',
+                                      style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
+                                    )),
+                        ),
+                        SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                              onPressed: _isLoading
+                                  ? null
+                                  : () {
+                                      Navigator.pop(context);
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold),
+                              )),
+                        ),
+                      ]),
+                ))));
   }
 }

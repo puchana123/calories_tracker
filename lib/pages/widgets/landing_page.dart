@@ -4,6 +4,8 @@ import 'package:calories_tracker/pages/widgets/add_calories.dart';
 import 'package:calories_tracker/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Landing Page
 class LandingPage extends StatefulWidget {
@@ -20,42 +22,158 @@ class LandingPage extends StatefulWidget {
 class _LandingPageState extends State<LandingPage> {
   DailyCalories? _dailyCalories;
   bool _isLoading = true;
+  List<DailyCalories> _weeklyCalories = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchDailyCalories();
+    _fetchData();
   }
 
   // Update daily calories
-  Future<void> _fetchDailyCalories() async {
+  Future<void> _fetchData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
     if (widget.user == null) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       return;
     }
 
-    // Get today's date
     DateTime today = DateTime.now();
-    // Get daily calories for today
-    DailyCalories? dailyCalories =
-        await widget.firebaseService.getDailyCalories(widget.user!.uid, today);
-    if (dailyCalories == null) {
-      // If daily calories not found, create a new one
-      dailyCalories = DailyCalories(date: today, consumed: 0, burned: 0);
-      // add the data to firebase
-      await widget.firebaseService
-          .addDailyCalories(widget.user!.uid, dailyCalories);
-      // Get the data to get the id
-      dailyCalories = await widget.firebaseService
-          .getDailyCalories(widget.user!.uid, today);
+    DateTime todayNormalize = DateTime(today.year, today.month, today.day);
+    // Try to load data from cache
+    final cachedData = await _loadFromCache();
+    if (cachedData != null) {
+      if (mounted) {
+        setState(() {
+          _dailyCalories = cachedData['daily'];
+          _weeklyCalories = cachedData['weekly'];
+          _isLoading = false;
+        });
+      }
+      print("Loaded from cache: ${_dailyCalories?.id}");
     }
 
-    setState(() {
-      _dailyCalories = dailyCalories;
-      _isLoading = false;
-    });
+    DailyCalories? dailyCalories = await widget.firebaseService
+        .getDailyCalories(widget.user!.uid, todayNormalize);
+    if (dailyCalories == null) {
+      dailyCalories =
+          DailyCalories(date: todayNormalize, consumed: 0, burned: 0);
+      dailyCalories = await widget.firebaseService
+          .addDailyCalories(widget.user!.uid, dailyCalories);
+      print("Created new dailyCalories: ${dailyCalories.id}");
+    } else {
+      print("Fetched existing dailyCalories: ${dailyCalories.id}");
+    }
+
+    // Fetch Weekly data
+    List<DailyCalories> weeklyData =
+        await _fetchWeeklyCalories(widget.user!.uid);
+
+    if (mounted) {
+      setState(() {
+        _dailyCalories = dailyCalories;
+        _weeklyCalories = weeklyData;
+        _isLoading = false;
+      });
+    }
+
+    await _saveToCache(dailyCalories, weeklyData);
+  }
+
+  Future<Map<String, dynamic>?> _loadFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedData = prefs.getString('landing_data_${widget.user!.uid}');
+    if (cachedData != null) {
+      final jsonData = jsonDecode(cachedData);
+      final timestamp = DateTime.parse(jsonData['timestamp']);
+      if (DateTime.now().difference(timestamp).inHours < 24) {
+        return {
+          'daily': DailyCalories(
+              id: jsonData['daily']['id'],
+              date: DateTime.parse(jsonData['daily']['date']),
+              consumed: jsonData['daily']['consumed'],
+              burned: jsonData['daily']['burned']),
+          'weekly': (jsonData['weekly'] as List)
+              .map((json) => DailyCalories(
+                    id: json['id'],
+                    date: DateTime.parse(json['date']),
+                    consumed: json['consumed'],
+                    burned: json['burned'],
+                  ))
+              .toList(),
+        };
+      }
+    }
+    return null;
+  }
+
+  Future<void> _saveToCache(
+      DailyCalories daily, List<DailyCalories> weekly) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonData = {
+      'timestamp': DateTime.now().toIso8601String(),
+      'daily': {
+        'id': daily.id,
+        'date': daily.date.toIso8601String(),
+        'consumed': daily.consumed,
+        'burned': daily.burned,
+      },
+      'weekly': weekly.map((daily) {
+        return {
+          'id': daily.id,
+          'date': daily.date.toIso8601String(),
+          'consumed': daily.consumed,
+          'burned': daily.burned,
+        };
+      }).toList(),
+    };
+    await prefs.setString(
+        'landing_data_${widget.user!.uid}', jsonEncode(jsonData));
+  }
+
+  // Fetch weekly calories data
+  Future<List<DailyCalories>> _fetchWeeklyCalories(String userId) async {
+    DateTime today = DateTime.now();
+    DateTime todayNormalize = DateTime(today.year, today.month, today.day);
+    DateTime startOfWeek =
+        todayNormalize.subtract(Duration(days: (today.weekday - 1) % 7));
+    DateTime endOfWeek = startOfWeek.add(Duration(days: 6));
+
+    print(
+        "Fetching weekly calories for UID: $userId, $startOfWeek to $endOfWeek");
+
+    List<DailyCalories> weeklyData = await widget.firebaseService
+        .getWeeklyCalories(
+            userId: userId, startOfWeek: startOfWeek, endOfWeek: endOfWeek);
+
+    Map<DateTime, DailyCalories> dataMap = {
+      for (var daily in weeklyData)
+        DateTime(daily.date.year, daily.date.month, daily.date.day): daily
+    };
+
+    List<DailyCalories> completeWeek = [];
+    for (int i = 0; i < 7; i++) {
+      DateTime currentDate = startOfWeek.add(Duration(days: i));
+      completeWeek.add(dataMap[currentDate] ??
+          DailyCalories(date: currentDate, consumed: 0, burned: 0));
+    }
+
+    int todayIndex =
+        completeWeek.indexWhere((d) => d.date.isAtSameMomentAs(todayNormalize));
+    if (todayIndex != -1 && _dailyCalories != null) {
+      completeWeek[todayIndex] = _dailyCalories!;
+      print(
+          "Updated today (index $todayIndex) with consumed: ${_dailyCalories!.consumed}");
+    }
+    return completeWeek;
   }
 
   @override
@@ -65,114 +183,158 @@ class _LandingPageState extends State<LandingPage> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _isLoading
-            ? Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
+            ? const Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        "Today",
-                        style: TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                    LinearProgressIndicator(),
                     SizedBox(height: 10),
-
-                    // Calories Left Card
-                    _caloriesLeftCard(),
-                    SizedBox(height: 10),
-
-                    // Consume & Burned Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: _infoCard(
-                              "Consume",
-                              "${_dailyCalories?.consumed ?? 0} kcal",
-                              Icons.fastfood,
-                              Colors.orange),
-                        ),
-                        Expanded(
-                          child: _infoCard(
-                              "Burned",
-                              "${_dailyCalories?.burned ?? 0} kcal",
-                              Icons.local_fire_department,
-                              Colors.blue),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 10),
-
-                    // BarChart Section
-                    Card(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                                child: Text(
-                              "Total Calories consume",
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
-                            )),
-                            SizedBox(height: 20),
-                            SizedBox(
-                              height: 180,
-                              child: BarChart(BarChartData(
-                                barGroups: [
-                                  _barData(0, 4),
-                                  _barData(1, 6),
-                                  _barData(2, 5),
-                                  _barData(3, 7),
-                                  _barData(4, 4),
-                                  _barData(5, 8),
-                                  _barData(6, 3),
-                                ],
-                                borderData: FlBorderData(show: false),
-                                titlesData: FlTitlesData(show: false),
-                                gridData: FlGridData(show: false),
-                              )),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 10),
-
-                    // Buttons
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => AddCalories(
-                                        dailyCalories: _dailyCalories!,
-                                        userId: widget.user!.uid,
-                                        firebaseService: widget.firebaseService,
-                                        onCaloriesAdded: _fetchDailyCalories,
-                                      )));
-                        },
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange),
-                        child: Text(
-                          "Add Calories",
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black),
-                        ),
-                      ),
-                    )
+                    Text("Loading..."),
                   ],
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _fetchData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      Center(
+                        child: Text(
+                          "Today",
+                          style: TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Calories Left Card
+                      _caloriesLeftCard(),
+                      const SizedBox(height: 10),
+
+                      // Consume & Burned Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: _infoCard(
+                                "Consumed",
+                                "${_dailyCalories?.consumed ?? 0} kcal",
+                                Icons.fastfood,
+                                Colors.orange),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _infoCard(
+                                "Burned",
+                                "${_dailyCalories?.burned ?? 0} kcal",
+                                Icons.local_fire_department,
+                                Colors.blue),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      // BarChart Section
+                      Card(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Center(
+                                  child: Text(
+                                "Total Calories Consumed This Week",
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              )),
+                              SizedBox(height: 20),
+                              // BarChart
+                              SizedBox(
+                                height: 180,
+                                child: _weeklyCalories.isEmpty
+                                    ? const Center(
+                                        child: Text("No data available"))
+                                    : BarChart(BarChartData(
+                                        barGroups: _generateBarGroups(),
+                                        borderData: FlBorderData(show: false),
+                                        titlesData: FlTitlesData(
+                                          show: true,
+                                          bottomTitles: AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              reservedSize: 30,
+                                              getTitlesWidget: _getBottomTitles,
+                                            ),
+                                          ),
+                                          leftTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false),
+                                          ),
+                                          topTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false),
+                                          ),
+                                          rightTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false),
+                                          ),
+                                        ),
+                                        gridData: FlGridData(
+                                            show: true,
+                                            drawVerticalLine: false),
+                                        minY: 0,
+                                        maxY: _calculateMaxY(),
+                                      )),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 10),
+
+                      // Buttons
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (_dailyCalories == null || widget.user == null) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text(
+                                    "Error: ${_dailyCalories == null ? 'Daily calories' : 'User'} not loaded yet."),
+                              ));
+                              _fetchData();
+                            } else {
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => AddCalories(
+                                            dailyCalories: _dailyCalories!,
+                                            userId: widget.user!.uid,
+                                            firebaseService:
+                                                widget.firebaseService,
+                                            onCaloriesAdded: _fetchData,
+                                          )));
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange),
+                          child: Text(
+                            "Add Calories",
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black),
+                          ),
+                        ),
+                      )
+                    ],
+                  ),
                 ),
               ),
       ),
@@ -181,17 +343,13 @@ class _LandingPageState extends State<LandingPage> {
 
   // Calories Left Card
   Widget _caloriesLeftCard() {
-    int caloriesLeft = (widget.user?.targetCal ?? 0) -
-        (_dailyCalories?.consumed ?? 0) +
-        (_dailyCalories?.burned ?? 0);
-    double progress = 0;
-    if ((widget.user?.targetCal ?? 0) > 0) {
-      progress = caloriesLeft /
-          ((widget.user?.targetCal ?? 0) + (_dailyCalories?.burned ?? 0));
-      if (progress > 1) {
-        progress = 1;
-      }
-    }
+    int targetCal = widget.user?.targetCal ?? 0;
+    int consumed = _dailyCalories?.consumed ?? 0;
+    int burned = _dailyCalories?.burned ?? 0;
+    int caloriesLeft = targetCal - consumed + burned;
+    double progress = targetCal > 0
+        ? (caloriesLeft / (targetCal + burned)).clamp(0.0, 1.0)
+        : 0.0;
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -208,12 +366,16 @@ class _LandingPageState extends State<LandingPage> {
             LinearProgressIndicator(
               value: progress,
               backgroundColor: Colors.grey[300],
-              color: progress <= 0.5 ? Colors.red : Colors.green,
+              color: progress <= 0.25
+                  ? Colors.red
+                  : progress <= 0.5
+                      ? Colors.orange
+                      : Colors.green,
               minHeight: 10,
             ),
             SizedBox(height: 10),
             Text(
-              "$caloriesLeft/${(widget.user?.targetCal ?? 0) + (_dailyCalories?.burned ?? 0)} kcal",
+              "$caloriesLeft/${targetCal + burned} kcal",
               style: TextStyle(fontSize: 16),
             ),
           ],
@@ -252,13 +414,49 @@ class _LandingPageState extends State<LandingPage> {
   }
 
   // BarChart Data
-  BarChartGroupData _barData(int x, double y) {
-    return BarChartGroupData(x: x, barRods: [
-      BarChartRodData(
-          toY: y,
-          color: Colors.orange,
-          width: 16,
-          borderRadius: BorderRadius.circular(8))
-    ]);
+  List<BarChartGroupData> _generateBarGroups() {
+    if (_weeklyCalories.isEmpty) {
+      print("No weekly data available");
+      return [];
+    }
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final barGroups = List.generate(_weeklyCalories.length, (index) {
+      final consumed = _weeklyCalories[index].consumed.toDouble();
+      print("Day $index (${weekdays[index]}): Consumed = $consumed");
+
+      return BarChartGroupData(x: index, barRods: [
+        BarChartRodData(
+            toY: consumed,
+            color: Colors.orange,
+            width: 16,
+            borderRadius: BorderRadius.circular(8))
+      ]);
+    });
+
+    return barGroups;
+  }
+
+  Widget _getBottomTitles(double value, TitleMeta meta) {
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    int index = value.toInt();
+    if (index >= 0 && index < weekdays.length) {
+      return SideTitleWidget(
+          meta: meta,
+          child: Text(weekdays[index],
+              style: TextStyle(fontSize: 12, color: Colors.grey)));
+    }
+    return const SizedBox.shrink();
+  }
+
+  double _calculateMaxY() {
+    if (_weeklyCalories.isEmpty) {
+      print("No data for maxY calculation, defaulting to 1000");
+      return 1000.0;
+    }
+    final maxConsumed =
+        _weeklyCalories.map((e) => e.consumed).reduce((a, b) => a > b ? a : b);
+    final maxY = (maxConsumed * 1.2).ceilToDouble();
+    print("Calculated maxY: $maxY (maxConsumed: $maxConsumed)");
+    return maxY > 0 ? maxY : 1000.0;
   }
 }
