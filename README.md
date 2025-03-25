@@ -10,10 +10,8 @@ A Flutter-based web application to track your weekly calorie intake and expendit
 - **Responsive Design**: Works seamlessly on web browsers.
 
 ## Screenshots
-![Login Page](screenshots/login_page.png)  
-![Signup Page](screenshots/signup_page.png)
-![Landing Page](screenshots/landing_page.png)  
-![History Page](screenshots/history_page.png)  
-![BMI Page](screenshots/bmi_page.png)
-![Add Calories Page](screenshots/add_calories_page.png)
-![Edit user detail Page](screenshots/edit_user_detail_page.png)
+<img src="screenshots/login_page.png" alt="Login Page" width="200"/>  
+<img src="screenshots/sign_up_page.png" alt="Sign Up Page" width="200"/>  
+<img src="screenshots/landing_page.png" alt="Landing Page" width="200"/>  
+<img src="screenshots/history_page.png" alt="History Page" width="200"/>  
+<img src="screenshots/bmi_page.png" alt="BMI Page" width="200"/>
