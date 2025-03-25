@@ -79,6 +79,11 @@ class _BMIPageState extends State<BMIPage> {
                                     firebaseService: widget.firebaseService),
                               ),
                             );
+                            if(mounted){
+                              setState(() {
+                                _isLoading = false;
+                              });
+                            }
                             if (updatedUser != null) {
                               // Show snackbar
                               if (mounted) {
@@ -89,11 +94,6 @@ class _BMIPageState extends State<BMIPage> {
                                   duration: Duration(seconds: 3),
                                 ));
                                 widget.onUserUpdated?.call(updatedUser);
-                              }
-                              if (mounted) {
-                                setState(() {
-                                  _isLoading = false;
-                                });
                               }
                             }
                           },
