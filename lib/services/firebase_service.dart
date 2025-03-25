@@ -14,18 +14,18 @@ class FirebaseService {
 
   // Get user details
   Future<UserModel?> getUser(String userId) async {
-    print("Fetching user details for UID: $userId");
+    // print("Fetching user details for UID: $userId");
     try {
       DocumentSnapshot doc =
           await _firestore.collection("users").doc(userId).get();
 
       if (doc.exists) {
-        print("User details found for UID: $userId");
+        // print("User details found for UID: $userId");
         return UserModel.fromDocument(doc);
       }
       return null;
     } catch (e) {
-      print("Error fetching user details: $e");
+      // print("Error fetching user details: $e");
       return null;
     }
   }
@@ -51,55 +51,55 @@ class FirebaseService {
 
       await _firestore.collection('users').doc(userId).set(user.toMap());
 
-      print("User signed up successfully, UID: $userId");
+      // print("User signed up successfully, UID: $userId");
     } catch (e) {
-      print("Error signing up: $e");
+      // print("Error signing up: $e");
       rethrow;
     }
   }
 
   Future<String?> signIn(String email, String password) async {
-    print("Attempting to sign in with Email: $email, Password: $password");
+    // print("Attempting to sign in with Email: $email, Password: $password");
     try {
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
           email: email.trim(), password: password.trim());
 
-      print("User signed in successfully, UID: ${userCredential.user!.uid}");
+      // print("User signed in successfully, UID: ${userCredential.user!.uid}");
       return userCredential.user!.uid;
-    } on FirebaseAuthException catch (e) {
-      print("Firebase Auth Error signing in: ${e.message}");
-      throw e;
+    } on FirebaseAuthException {
+      // print("Firebase Auth Error signing in: ${e.message}");
+      rethrow;
     } catch (e) {
-      print("Error signing in: $e");
-      throw e;
+      // print("Error signing in: $e");
+      rethrow;
     }
   }
 
   Future<void> signOut() async {
-    print("Signing out");
+    // print("Signing out");
     try {
       await _auth.signOut();
-      print("User signed out successfully");
+      // print("User signed out successfully");
     } catch (e) {
-      print("Error signing out: $e");
-      throw e;
+      // print("Error signing out: $e");
+      rethrow;
     }
   }
 
   Future<void> updateUserDetails(UserModel user) async {
-    print("Updating user details for UID: ${user.uid}");
+    // print("Updating user details for UID: ${user.uid}");
     try {
       await _firestore.collection("users").doc(user.uid).update(user.toMap());
-      print("User details updated successfully for UID: ${user.uid}");
+      // print("User details updated successfully for UID: ${user.uid}");
     } catch (e) {
-      print("Error updating user details: $e");
-      throw e;
+      // print("Error updating user details: $e");
+      rethrow;
     }
   }
 
   // Get daily calories for a specific user and date
   Future<DailyCalories?> getDailyCalories(String userId, DateTime date) async {
-    print("Fetching daily calories for UID: $userId on Date: $date");
+    // print("Fetching daily calories for UID: $userId on Date: $date");
     try {
       String docId = _formatDate(date);
       DocumentSnapshot doc = await _firestore
@@ -113,7 +113,7 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      print("Error fetching daily calories: $e");
+      // print("Error fetching daily calories: $e");
       rethrow;
     }
   }
@@ -121,8 +121,8 @@ class FirebaseService {
   // Add daily calories if it doesn’t exist for the day
   Future<DailyCalories> addDailyCalories(
       String userId, DailyCalories dailyCalories) async {
-    print(
-        "Adding daily calories for UID: $userId on Date: ${dailyCalories.date}");
+    // print(
+    // "Adding daily calories for UID: $userId on Date: ${dailyCalories.date}");
 
     try {
       String docId = _formatDate(dailyCalories.date);
@@ -141,15 +141,15 @@ class FirebaseService {
       dailyCalories.id = docId;
       return dailyCalories;
     } catch (e) {
-      print("Error adding daily calories: $e");
-      throw e;
+      // print("Error adding daily calories: $e");
+      rethrow;
     }
   }
 
   // Update existing daily calories
   Future<DailyCalories> updateDailyCalories(
       String userId, DailyCalories dailyCalories) async {
-    print("Updating daily calories for UID: ${dailyCalories.id}");
+    // print("Updating daily calories for UID: ${dailyCalories.id}");
     try {
       await _firestore
           .collection('users')
@@ -159,7 +159,7 @@ class FirebaseService {
           .set(dailyCalories.toMap(), SetOptions(merge: true));
       return dailyCalories;
     } catch (e) {
-      print("Error updating daily calories: $e");
+      // print("Error updating daily calories: $e");
       rethrow;
     }
   }
@@ -170,8 +170,11 @@ class FirebaseService {
     required DateTime startOfWeek,
     required DateTime endOfWeek,
   }) async {
-    print("Fetching weekly calories for UID: $userId");
+    // print("Fetching weekly calories for UID: $userId");
     try {
+      // Check and reset weekly data
+      await resetWeeklyData(userId);
+
       QuerySnapshot query = await _firestore
           .collection('users')
           .doc(userId)
@@ -183,8 +186,38 @@ class FirebaseService {
 
       return query.docs.map((doc) => DailyCalories.fromDocument(doc)).toList();
     } catch (e) {
-      print("Error fetching weekly calories: $e");
+      // print("Error fetching weekly calories: $e");
       return [];
+    }
+  }
+
+  // Reset Weekly Data
+  Future<void> resetWeeklyData(String userId) async {
+    // print("Resetting weekly data for UID: $userId");
+
+    DateTime now = DateTime.now();
+    DateTime today = DateTime(now.year, now.month, now.day);
+    DateTime startOfCurrentWeek =
+        today.subtract(Duration(days: (today.weekday - 1) % 7));
+
+    if (today.weekday == 1) {
+      try {
+        QuerySnapshot snapshot = await _firestore
+            .collection("users")
+            .doc(userId)
+            .collection("caloriesTrack")
+            .where("date", isLessThan: startOfCurrentWeek.toIso8601String())
+            .get();
+
+        WriteBatch batch = _firestore.batch();
+        for (var doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        // print("Deleted previous week's data successfully for UID: $userId from $startOfLastWeek to $endOfLastWeek");
+      } catch (e) {
+        // print("Error deleting previous week's data: $e");
+      }
     }
   }
 }

@@ -134,7 +134,7 @@ class _BMIPageState extends State<BMIPage> {
                                     (Route<dynamic> route) => false);
                               }
                             } catch (e) {
-                              print("Error signing out: $e");
+                              // print("Error signing out: $e");
                               _showError("Sign Out Error",
                                   "There was an error signing you out.");
                             } finally {

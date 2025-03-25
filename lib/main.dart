@@ -17,7 +17,7 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Calories Tracker',
+      title: 'Weekly Calories Tracker',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),

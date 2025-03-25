@@ -72,7 +72,7 @@ class _EditUserDetailsState extends State<EditUserDetails> {
           Navigator.pop(context, updatedUser);
         }
       } catch (e) {
-        print("Error updating user details: $e");
+        // print("Error updating user details: $e");
         if (mounted) {
           _showError(
               "Update Error", "An error occurred while updating user details.");

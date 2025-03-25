@@ -1,3 +1,4 @@
+import 'package:calories_tracker/models/user_model.dart';
 import 'package:calories_tracker/pages/home_page.dart';
 import 'package:calories_tracker/pages/signup_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,15 +39,26 @@ class _LoginPageState extends State<LoginPage> {
         String? uid = await _firebaseService.signIn(
             _emailController.text.trim(), _passwordController.text.trim());
         if (uid != null) {
-          _showSnackBar("Login successful");
-          if(mounted){
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomePage(uid: uid),
-              ),
-            );
+          UserModel? user = await _firebaseService.getUser(uid);
+          if (user != null) {
+            _showSnackBar("Login successful");
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomePage(
+                    userId: uid,
+                    firebaseService: _firebaseService,
+                  ),
+                ),
+              );
+            }
+          } else {
+            _showSnackBar("User data not found in Firestore. Please sign up.");
+            await FirebaseAuth.instance.signOut();
           }
+        } else {
+          _showSnackBar("Login failed: Unable to retrieve user ID.");
         }
       } on FirebaseAuthException catch (e) {
         if (e.code == 'invalid-credential' ||
@@ -60,7 +72,7 @@ class _LoginPageState extends State<LoginPage> {
       } catch (e) {
         _showErrorDialog("Error during sign in", "Error signing in: $e");
       } finally {
-        if(mounted){
+        if (mounted) {
           setState(() {
             _isLoading = false;
           });
@@ -105,9 +117,9 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Calories Tracker',
-                        style:
-                            TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        'Weekly Calories Tracker',
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                       SizedBox(height: 20),
                       TextFormField(
@@ -161,11 +173,16 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         child: _isLoading
-                            ? CircularProgressIndicator(color: Colors.black,)
+                            ? CircularProgressIndicator(
+                                color: Colors.black,
+                              )
                             : Text('Login',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16)),
                       ),
-                      
+                      const SizedBox(height: 10),
                       TextButton(
                         onPressed: () {
                           Navigator.push(
@@ -176,7 +193,8 @@ class _LoginPageState extends State<LoginPage> {
                         child: Text(
                           'SignUp',
                           style: TextStyle(
-                              color: Colors.orange, fontWeight: FontWeight.bold),
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],

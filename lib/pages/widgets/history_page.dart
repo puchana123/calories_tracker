@@ -9,11 +9,13 @@ import 'dart:convert';
 class HistoryPage extends StatefulWidget {
   final UserModel? user;
   final FirebaseService firebaseService;
+  final Function() onCaloriesAdded;
 
   const HistoryPage({
     required Key key,
     required this.user,
     required this.firebaseService,
+    required this.onCaloriesAdded,
   }) : super(key: key);
 
   @override
@@ -49,6 +51,13 @@ class _HistoryPageState extends State<HistoryPage> {
         });
       }
 
+      DateTime today = DateTime.now();
+      if (today.weekday == 1) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('landing_data_${widget.user!.uid}');
+        // print("Cleared cache on landing page for UID: ${widget.user!.uid}");
+      }
+
       // Try to load data from cache
       final cachedData = await _loadFromCache();
       if (cachedData != null && mounted) {
@@ -72,7 +81,7 @@ class _HistoryPageState extends State<HistoryPage> {
       // Save to cache
       await _saveToCache(weeklyCalories);
     } catch (e) {
-      print("Error fetching data: $e");
+      // print("Error fetching data: $e");
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -95,8 +104,8 @@ class _HistoryPageState extends State<HistoryPage> {
           todayNormalize.subtract(Duration(days: (today.weekday - 1) % 7));
       DateTime endOfWeek = startOfWeek.add(Duration(days: 6));
 
-      print(
-          "Fetching weekly calories for UID: $userId, $startOfWeek to $endOfWeek");
+      // print(
+      //     "Fetching weekly calories for UID: $userId, $startOfWeek to $endOfWeek");
 
       List<DailyCalories> weeklyData = await widget.firebaseService
           .getWeeklyCalories(
@@ -116,7 +125,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
       return completeWeek;
     } catch (e) {
-      print("Error fetching weekly calories: $e");
+      // print("Error fetching weekly calories: $e");
       return [];
     }
   }
@@ -250,7 +259,7 @@ class _HistoryPageState extends State<HistoryPage> {
                           fontWeight: FontWeight.bold,
                           color: Colors.black)),
                   SizedBox(width: 10),
-                  Text("kilo calories",
+                  Text("kcal",
                       style: TextStyle(fontSize: 14, color: Colors.grey[600])),
                 ],
               ),
@@ -308,14 +317,14 @@ class _HistoryPageState extends State<HistoryPage> {
   List<BarChartGroupData> _generateBarGroups(
       List<double> data, Color barColor) {
     if (data.isEmpty || _weeklyCalories.isEmpty) {
-      print("No data available");
+      // print("No data available");
       return [];
     }
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final barGroups = List.generate(data.length, (index) {
       final value = data[index];
-      print(
-          "$barColor chart - Day $index (${weekdays[index]}): Value = $value");
+      // print(
+      //     "$barColor chart - Day $index (${weekdays[index]}): Value = $value");
       return BarChartGroupData(
         x: index,
         barRods: [
@@ -333,12 +342,12 @@ class _HistoryPageState extends State<HistoryPage> {
 
   double _calculateMaxY(List<double> data) {
     if (data.isEmpty) {
-      print("No data for maxY calculation, defaulting to 1000");
+      // print("No data for maxY calculation, defaulting to 1000");
       return 1000.0;
     }
     final maxValue = data.reduce((a, b) => a > b ? a : b);
     final maxY = (maxValue * 1.2).ceilToDouble();
-    print("Calculated maxY: $maxY (maxValue: $maxValue)");
+    // print("Calculated maxY: $maxY (maxValue: $maxValue)");
     return maxY > 0 ? maxY : 1000.0;
   }
 }

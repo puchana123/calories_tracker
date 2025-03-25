@@ -8,9 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class HomePage extends StatefulWidget {
-  final String uid;
+  final FirebaseService firebaseService;
+  final String userId;
 
-  const HomePage({super.key, required this.uid});
+  const HomePage(
+      {super.key, required this.userId, required this.firebaseService});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -20,46 +22,56 @@ class _HomePageState extends State<HomePage> {
   UserModel? _user;
   bool _isLoading = true;
   int _selectedIndex = 1;
-  List<Widget> _pages = [];
-  late FirebaseService _firebaseService;
+  late List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-    _firebaseService = FirebaseService();
     _fetchUserDetails();
   }
 
   Future<void> _fetchUserDetails() async {
-    if(!mounted) return;
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
     });
 
-    // Try loading from cache
-    final cachedUser = await _loadUserFromCache();
-    if (cachedUser != null && mounted) {
-      setState(() {
-        _user = cachedUser;
+    try {
+      // Try to load from cache first
+      final cachedUser = await _loadUserFromCache();
+      if (cachedUser != null && mounted) {
+        setState(() {
+          _user = cachedUser;
+          _isLoading = false;
+          // print("Loaded user from cache: ${_user?.toMap()}");
+        });
         _initializePages();
-        _isLoading = false;
-      });
-    }
-
-    // Fetch user details from Firebase
-    UserModel? fetchedUser = await _firebaseService.getUser(widget.uid);
-
-    if(mounted){
-      setState(() {
-        _user = fetchedUser;
-        _initializePages();
-        _isLoading = false;
-      });
-    }
-
-    if (fetchedUser != null) {
-      await _saveUserToCache(fetchedUser);
+      }
+      // Fetch from Firebase
+      final user = await widget.firebaseService.getUser(widget.userId);
+      if (mounted) {
+        setState(() {
+          _user = user;
+          _isLoading = false;
+          if (user != null) {
+            // print("Fetched and cached user: ${user.uid}");
+          } else {
+            // print("No user data found for UID: ${widget.userId}");
+          }
+        });
+        if (user != null) {
+          await _saveUserToCache(user);
+          _initializePages();
+        }
+      }
+    } catch (e) {
+      // print("Error fetching user details: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -75,12 +87,12 @@ class _HomePageState extends State<HomePage> {
       'weight': user.weight,
       'targetCal': user.targetCal,
     };
-    await prefs.setString('user_${widget.uid}', jsonEncode(jsonData));
+    await prefs.setString('user_${user.uid}', jsonEncode(jsonData));
   }
 
   Future<UserModel?> _loadUserFromCache() async {
     final prefs = await SharedPreferences.getInstance();
-    final cachedJson = prefs.getString('user_${widget.uid}');
+    final cachedJson = prefs.getString('user_${widget.userId}');
     if (cachedJson != null) {
       final jsonData = jsonDecode(cachedJson);
       final timestamp = DateTime.parse(jsonData['timestamp']);
@@ -100,34 +112,45 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _initializePages() {
-    if (_user != null) {
-      _pages = [
-        BMIPage(
-          user: _user,
-          firebaseService: _firebaseService,
-          onUserUpdated: (updatedUser) {
-            if(mounted){
-              setState(() {
-                _user = updatedUser;
-                _initializePages();
-              });
-            }
-          },
-        ),
-        LandingPage(user: _user, firebaseService: _firebaseService),
-        HistoryPage(
-          user: _user,
-          firebaseService: _firebaseService,
-          key: UniqueKey(),
-        ),
-      ];
-    } else {
-      _pages = [
-        _buildErrorWidget(),
-        _buildErrorWidget(),
-        _buildErrorWidget(),
-      ];
+    void refreshAll() {
+      _fetchUserDetails();
+      if (mounted) {
+        setState(() {
+          _pages = _buildPages(refreshAll);
+        });
+      }
     }
+
+    _pages = _buildPages(refreshAll);
+  }
+
+  List<Widget> _buildPages(Function() refreshCallback) {
+    return [
+      BMIPage(
+        user: _user,
+        firebaseService: widget.firebaseService,
+        onUserUpdated: (updatedUser) {
+          if (mounted) {
+            setState(() {
+              _user = updatedUser;
+              _pages = _buildPages(refreshCallback);
+            });
+          }
+        },
+      ),
+      LandingPage(
+        key: UniqueKey(),
+        user: _user,
+        firebaseService: widget.firebaseService,
+        onCaloriesAdded: refreshCallback,
+      ),
+      HistoryPage(
+        key: UniqueKey(),
+        user: _user,
+        firebaseService: widget.firebaseService,
+        onCaloriesAdded: refreshCallback,
+      ),
+    ];
   }
 
   Widget _buildErrorWidget() {
@@ -141,7 +164,7 @@ class _HomePageState extends State<HomePage> {
           SizedBox(height: 10),
           ElevatedButton(
             onPressed: () {
-              if(mounted){
+              if (mounted) {
                 Navigator.pop(context);
               }
             },
@@ -153,7 +176,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onItemTapped(int index) {
-    if(mounted){
+    if (mounted) {
       setState(() {
         _selectedIndex = index;
       });
@@ -177,10 +200,12 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             )
-          : IndexedStack(
-              index: _selectedIndex,
-              children: _pages,
-            ),
+          : _user == null
+              ? _buildErrorWidget()
+              : IndexedStack(
+                  index: _selectedIndex,
+                  children: _pages,
+                ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

@@ -11,9 +11,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LandingPage extends StatefulWidget {
   final UserModel? user;
   final FirebaseService firebaseService;
+  final Function()? onCaloriesAdded;
 
-  const LandingPage(
-      {super.key, required this.user, required this.firebaseService});
+  LandingPage({
+    super.key,
+    required this.user,
+    required this.firebaseService,
+    Function()? onCaloriesAdded,
+  }) : onCaloriesAdded = onCaloriesAdded ?? (() {});
 
   @override
   State<LandingPage> createState() => _LandingPageState();
@@ -48,6 +53,13 @@ class _LandingPageState extends State<LandingPage> {
 
     DateTime today = DateTime.now();
     DateTime todayNormalize = DateTime(today.year, today.month, today.day);
+
+    if (today.weekday == 1) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('landing_data_${widget.user!.uid}');
+      // print("Cleared cache on landing page for UID: ${widget.user!.uid}");
+    }
+
     // Try to load data from cache
     final cachedData = await _loadFromCache();
     if (cachedData != null) {
@@ -58,7 +70,7 @@ class _LandingPageState extends State<LandingPage> {
           _isLoading = false;
         });
       }
-      print("Loaded from cache: ${_dailyCalories?.id}");
+      // print("Loaded from cache: ${_dailyCalories?.id}");
     }
 
     DailyCalories? dailyCalories = await widget.firebaseService
@@ -68,9 +80,9 @@ class _LandingPageState extends State<LandingPage> {
           DailyCalories(date: todayNormalize, consumed: 0, burned: 0);
       dailyCalories = await widget.firebaseService
           .addDailyCalories(widget.user!.uid, dailyCalories);
-      print("Created new dailyCalories: ${dailyCalories.id}");
+      // print("Created new dailyCalories: ${dailyCalories.id}");
     } else {
-      print("Fetched existing dailyCalories: ${dailyCalories.id}");
+      // print("Fetched existing dailyCalories: ${dailyCalories.id}");
     }
 
     // Fetch Weekly data
@@ -147,8 +159,8 @@ class _LandingPageState extends State<LandingPage> {
         todayNormalize.subtract(Duration(days: (today.weekday - 1) % 7));
     DateTime endOfWeek = startOfWeek.add(Duration(days: 6));
 
-    print(
-        "Fetching weekly calories for UID: $userId, $startOfWeek to $endOfWeek");
+    // print(
+    //     "Fetching weekly calories for UID: $userId, $startOfWeek to $endOfWeek");
 
     List<DailyCalories> weeklyData = await widget.firebaseService
         .getWeeklyCalories(
@@ -170,8 +182,8 @@ class _LandingPageState extends State<LandingPage> {
         completeWeek.indexWhere((d) => d.date.isAtSameMomentAs(todayNormalize));
     if (todayIndex != -1 && _dailyCalories != null) {
       completeWeek[todayIndex] = _dailyCalories!;
-      print(
-          "Updated today (index $todayIndex) with consumed: ${_dailyCalories!.consumed}");
+      // print(
+      //     "Updated today (index $todayIndex) with consumed: ${_dailyCalories!.consumed}");
     }
     return completeWeek;
   }
@@ -318,7 +330,10 @@ class _LandingPageState extends State<LandingPage> {
                                             userId: widget.user!.uid,
                                             firebaseService:
                                                 widget.firebaseService,
-                                            onCaloriesAdded: _fetchData,
+                                            onCaloriesAdded: () {
+                                              _fetchData();
+                                              widget.onCaloriesAdded!();
+                                            },
                                           )));
                             }
                           },
@@ -416,13 +431,13 @@ class _LandingPageState extends State<LandingPage> {
   // BarChart Data
   List<BarChartGroupData> _generateBarGroups() {
     if (_weeklyCalories.isEmpty) {
-      print("No weekly data available");
+      // print("No weekly data available");
       return [];
     }
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final barGroups = List.generate(_weeklyCalories.length, (index) {
       final consumed = _weeklyCalories[index].consumed.toDouble();
-      print("Day $index (${weekdays[index]}): Consumed = $consumed");
+      // print("Day $index (${weekdays[index]}): Consumed = $consumed");
 
       return BarChartGroupData(x: index, barRods: [
         BarChartRodData(
@@ -450,13 +465,13 @@ class _LandingPageState extends State<LandingPage> {
 
   double _calculateMaxY() {
     if (_weeklyCalories.isEmpty) {
-      print("No data for maxY calculation, defaulting to 1000");
+      // print("No data for maxY calculation, defaulting to 1000");
       return 1000.0;
     }
     final maxConsumed =
         _weeklyCalories.map((e) => e.consumed).reduce((a, b) => a > b ? a : b);
     final maxY = (maxConsumed * 1.2).ceilToDouble();
-    print("Calculated maxY: $maxY (maxConsumed: $maxConsumed)");
+    // print("Calculated maxY: $maxY (maxConsumed: $maxConsumed)");
     return maxY > 0 ? maxY : 1000.0;
   }
 }
