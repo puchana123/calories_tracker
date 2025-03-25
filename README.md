@@ -2,6 +2,10 @@
 
 A Flutter-based web application to track your weekly calorie intake and expenditure. Built with Firebase for authentication and data storage, this app helps you monitor your daily calories consumed and burned, visualize weekly trends, and reset data each week for a fresh start.
 
+## Live Demo
+Try it out: [Weekly Calories Tracker](https://calories-tracker-7dd50.web.app/)
+note: use small screen for best experience.
+
 ## Features
 
 - **User Authentication**: Secure login/signup with Firebase Authentication.
